@@ -12,7 +12,7 @@ The following scripts are available:
    Helper for reading the request coming from myshop.com when a plugin is viewed inside the backoffice of myshop.com
 
 -- helloWorld.php
-   Gives an example of how to use myshopRequest.php
+   Gives an example of how to use MyshopRequest.php - use in the same directory as MyshopRequest.php or change the include!
 
 -- MyshopRpcClient.php
    Helper for using the myshop.com RPC functions / API
