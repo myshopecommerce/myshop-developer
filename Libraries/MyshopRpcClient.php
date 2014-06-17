@@ -51,7 +51,7 @@ class MyshopRpcClient {
         if($tmpDir!=null && is_dir($tmpDir)){
             $this->tmpDirectory = $tmpDir;
         }else{
-            $this->tmpDirectory = realpath('./tmp');
+            $this->tmpDirectory = realpath('.').'/tmp/';
             if(!is_dir($this->tmpDirectory)) mkdir($this->tmpDirectory);
         }
     }
@@ -304,7 +304,7 @@ class MyshopRpcClient {
 
         $result = $this->uploadFile($command, $args, $filename, $zipdata);
 
-        return strpos($result, "invalid request") === false;
+        return $result;
     }
 
     /**
