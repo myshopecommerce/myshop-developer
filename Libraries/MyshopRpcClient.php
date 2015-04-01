@@ -57,6 +57,19 @@ class MyshopRpcClient {
     }
 
     /**
+     * Set a new partner name and key
+     *
+     * @param String $name      - The partner name to use for the RPC requests
+     * @param String $key       - The partner key to use for RPC requests
+     * @return MyshopRpcClient  - Returns itself for chaining commands
+     */
+    public function auth($name, $key){
+        $this->partnerName = $name;
+        $this->partnerKey = $key;
+        return $this;
+    }
+
+    /**
      * Gets a Rpc Id from the RPC server
      *
      * @param  String $shopId - The shopnumber of the current shop
