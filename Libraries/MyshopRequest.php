@@ -29,7 +29,7 @@
  * Reads the POST Body from the current request and provides access to the state and
  * parameter variables.
  *
- * Version: 1.2
+ * Version: 1.3
  * Author: Sem van der Wal
  **/
 
@@ -43,8 +43,11 @@ class MyshopRequest {
     private $signature;
     private $privateKey;
 
-    function __construct($privateKey){
-        if($privateKey && $privateKey!=''){
+    function __construct($privateKey=null){
+        if(empty($privateKey) && defined("MYSHOP_REQUEST_PRIVATE_KEY")){
+            $privateKey = MYSHOP_REQUEST_PRIVATE_KEY;
+        }
+        if(!empty($privateKey)){
             $this->privateKey = $privateKey;
 
             $doc = new DOMDocument();
@@ -66,11 +69,9 @@ class MyshopRequest {
             }else{
                 throw new MyshopEmptyRequestBodyException();
             }
-            /* Signature check is not working correctly - temporarily disabled
             if(!$this->checkSignature()){
                 throw new MyshopSignatureException();
             }
-            */
         }else{
             throw new InvalidArgumentException('Missing argument privateKey');
         }
