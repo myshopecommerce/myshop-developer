@@ -1,7 +1,7 @@
 <?php
 
 /**
- * @(#) myshopRequest.php 08/01/2013
+ * @(#) myshopRequest.php 29/06/2015
  *
  * Copyright 1999-2013(c) MijnWinkel B.V. Rijnegomlaan 33, Aerdenhout,
  * North Holland, NL-2114EH, The Netherlands All rights reserved.
@@ -29,6 +29,8 @@
  * Reads the POST Body from the current request and provides access to the state and
  * parameter variables.
  *
+ * This class was developed using PHP 5.3.6 with libxml.
+ *
  * Version: 1.3
  * Author: Sem van der Wal
  **/
@@ -38,42 +40,43 @@ class MyshopRequest {
     private $root;
     private $params;
     private $state;
+    private $modules = array();
+    private $general = array();
     private $location;
     private $active;
-    private $signature;
     private $privateKey;
 
-    function __construct($privateKey=null){
+    function __construct($privateKey=''){
         if(empty($privateKey) && defined("MYSHOP_REQUEST_PRIVATE_KEY")){
             $privateKey = MYSHOP_REQUEST_PRIVATE_KEY;
         }
-        if(!empty($privateKey)){
-            $this->privateKey = $privateKey;
+        $this->privateKey = $privateKey;
 
-            $doc = new DOMDocument();
-            $rbody = $this->getRequestBody();
-            $ok = false;
-            if($rbody!=null){
-                $ok = $doc->loadXML($rbody);
-                if($ok){
-                    $this->root = $doc->documentElement;
+        $doc = new DOMDocument();
+        $rbody = $this->getRequestBody();
+        $ok = false;
+        if(!empty($rbody)){
+            $ok = $doc->loadXML($rbody);
+            if($ok){
+                $this->root = $doc->documentElement;
 
-                    $this->buildState();
-                    $this->buildParams();
+                $this->buildState();
+                $this->buildParams();
+                $this->buildGeneral();
+                $this->buildModules();
 
-                    $this->setLocation();
-                    $this->setActive();
-                }else{
-                    throw new MyshopXMLException();
-                }
+                $this->setLocation();
+                $this->setActive();
             }else{
-                throw new MyshopEmptyRequestBodyException();
-            }
-            if(!$this->checkSignature()){
-                throw new MyshopSignatureException();
+                throw new MyshopXMLException();
             }
         }else{
-            throw new InvalidArgumentException('Missing argument privateKey');
+            throw new MyshopEmptyRequestBodyException();
+        }
+        if(!empty($this->privateKey)) {
+            if (!$this->checkSignature()) {
+                throw new MyshopSignatureException();
+            }
         }
     }
 
@@ -88,14 +91,23 @@ class MyshopRequest {
             return $this->params;
         }else{
             error_log('Empty params');
-            return '';
+            return array();
         }
+    }
+
+    /* Returns all general values */
+    public function getGeneralValues(){
+        return $this->general;
     }
 
     /* Returns specific named state variable */
     public function getState($name){
         if($this->state){
-            return $this->state[$name];
+            if(isset($this->state[$name])){
+                return $this->state[$name];
+            }else{
+                return '';
+            }
         }else{
             error_log('Empty state');
             return '';
@@ -104,7 +116,20 @@ class MyshopRequest {
 
     /* Returns specific named parameter */
     public function getParam($name){
-        return $this->params[$name];
+        if(isset($this->params[$name])){
+            return $this->params[$name];
+        }else{
+            return '';
+        }
+    }
+
+    /* Return module property value */
+    public function getModuleProp($module, $name){
+        if(isset($this->modules[$module]) && isset($this->modules[$module][$name])){
+            return $this->modules[$module][$name];
+        }else{
+            return '';
+        }
     }
 
     /* Returns location of the current plugin call */
@@ -144,7 +169,46 @@ class MyshopRequest {
             $paramElements = $this->root->getElementsByTagName('request')->item(0)->getElementsByTagName('parameters')->item(0)->childNodes;
             for($i=0;$i<$paramElements->length;$i++){
                 $el = $paramElements->item($i);
-                $this->params[$el->getAttribute('name')] = $el->nodeValue;
+                if($el->nodeType==XML_ELEMENT_NODE){
+                    $this->params[$el->getAttribute('name')] = $el->nodeValue;
+                }
+            }
+        }catch(Exception $e){
+            error_log('Encountered error while reading XML: '.$e->getMessage());
+        }
+    }
+
+    /* Build the general array */
+    private function buildGeneral(){
+        try{
+            $paramElements = $this->root->getElementsByTagName('general')->item(0)->childNodes;
+            for($i=0;$i<$paramElements->length;$i++){
+                $el = $paramElements->item($i);
+                if($el->nodeType==XML_ELEMENT_NODE){
+                    $this->general[strtolower($el->getAttribute('id'))] = $el->nodeValue;
+                }
+            }
+        }catch(Exception $e){
+            error_log('Encountered error while reading XML: '.$e->getMessage());
+        }
+    }
+
+    /* Build the modules array */
+    private function buildModules(){
+        try{
+            $moduleElements = $this->root->getElementsByTagName('module');
+            for($i=0;$i<$moduleElements->length;$i++){
+                $el = $moduleElements->item($i);
+                if($el->nodeType==XML_ELEMENT_NODE){
+                    /** @var DOMElement $el */
+                    $moduleName = $el->getAttribute('name');
+                    $this->modules[$moduleName] = array();
+                    $propertyElements = $el->getElementsByTagName("property");
+                    for($j=0;$j<$propertyElements->length;$j++){
+                        $prop = $propertyElements->item($j);
+                        $this->modules[$moduleName][$prop->getAttribute('name')] = $prop->nodeValue;
+                    }
+                }
             }
         }catch(Exception $e){
             error_log('Encountered error while reading XML: '.$e->getMessage());
@@ -154,7 +218,10 @@ class MyshopRequest {
     /* Find and set the location of the current request in the myshop backoffice */
     private function setLocation(){
         try{
-            $this->location = $this->root->getElementsByTagName('request')->item(0)->getElementsByTagName('location')->item(0)->nodeValue;
+            $loc = $this->root->getElementsByTagName('request')->item(0)->getElementsByTagName('location');
+            if($loc->length>0){
+                $this->location = $loc->item(0)->nodeValue;
+            }
         }catch(Exception $e){
             error_log('Encountered error while reading XML: '.$e->getMessage());
         }
@@ -163,7 +230,10 @@ class MyshopRequest {
     /* Find and set the plugin active state */
     private function setActive(){
         try{
-            $this->active = $this->root->getElementsByTagName('request')->item(0)->getElementsByTagName('plugin_active')->item(0)->nodeValue == '1';
+            $active = $this->root->getElementsByTagName('request')->item(0)->getElementsByTagName('plugin_active');
+            if($active->length>0){
+                $this->active = $active->item(0)->nodeValue == '1';
+            }
         }catch(Exception $e){
             error_log('Encountered error while reading XML: '.$e->getMessage());
         }
@@ -191,6 +261,10 @@ class MyshopRequest {
 
     /* Returns the request body */
     private function getRequestBody(){
+        if(isset($_REQUEST['request_info_xml'])){
+            return $_REQUEST['request_info_xml'];
+        }
+
         $req_body = '';
         $fh   = @fopen('php://input', 'r');
         if ($fh){
